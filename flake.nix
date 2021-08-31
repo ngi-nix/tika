@@ -1,5 +1,5 @@
 {
-  description = "(insert short project description here)";
+  description = "(Flake for Apache Tika server)";
 
   # Nixpkgs / NixOS version to use.
   inputs.nixpkgs.url = "nixpkgs/nixos-20.09";
@@ -106,7 +106,7 @@
                   systemd.services.tika-server = {
                     description = "Tika Server";
                     serviceConfig = {
-                      ExecStart = "${self.defaultPackage}/bin/tika-server";
+                      ExecStart = "${self.defaultPackage.out}/bin/tika-server";
                       
                     };
                   };
