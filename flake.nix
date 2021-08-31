@@ -106,7 +106,7 @@
                   systemd.services.tika-server = {
                     description = "Tika Server";
                     serviceConfig = {
-                      ExecStart = "${self.defaultPackage}.${system}."tika-server/bin/tika-server";
+                      ExecStart = "${self.defaultPackage}.${system}.tika-server/bin/tika-server";
                       
                     };
                   };
