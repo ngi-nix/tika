@@ -101,7 +101,7 @@
 
                 ###### implementation
 
-                config = mkIf config.services.redis.enable {
+                config = mkIf config.services.tika-server.enable {
 
                   systemd.services.tika-server = {
                     description = "Tika Server";
