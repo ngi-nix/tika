@@ -1,22 +1,18 @@
 {
-  description = "(insert short project description here)";
+  description = "(Flake for Apache Tika server)";
 
   # Nixpkgs / NixOS version to use.
   inputs.nixpkgs.url = "nixpkgs/nixos-20.09";
-
   # Upstream source tree(s).
-  inputs.hello-src = { url = git+https://git.savannah.gnu.org/git/hello.git; flake = false; };
-  inputs.gnulib-src = { url = git+https://git.savannah.gnu.org/git/gnulib.git; flake = false; };
 
-  outputs = { self, nixpkgs, hello-src, gnulib-src }:
+  outputs = { self, nixpkgs}:
     let
 
       # Generate a user-friendly version numer.
-      version = builtins.substring 0 8 hello-src.lastModifiedDate;
-
+      version = "1.26";
       # System types to support.
       supportedSystems = [ "x86_64-linux" ];
-
+      
       # Helper function to generate an attrset '{ x86_64-linux = f "x86_64-linux"; ... }'.
       forAllSystems = f: nixpkgs.lib.genAttrs supportedSystems (system: f system);
 
@@ -30,17 +26,40 @@
       # A Nixpkgs overlay.
       overlay = final: prev: {
 
-        hello = with final; stdenv.mkDerivation rec {
-          name = "hello-${version}";
+        tika-server = with final; stdenv.mkDerivation rec {
+          name = "tika-server-${version}";
 
-          src = hello-src;
+          src = fetchurl {
+            url = https://archive.apache.org/dist/tika/tika-server-1.26.jar;
+            sha256 ="sha256-GLXsW4p/gKPOJTz5PF6l8DGjwXvIPoirDSmlFujnPZU=";
+          };
 
-          buildInputs = [ autoconf automake gettext gnulib perl gperf texinfo help2man ];
+          dontUnpack = true;
 
-          preConfigure = ''
-            mkdir -p .git # force BUILD_FROM_GIT
-            ./bootstrap --gnulib-srcdir=${gnulib-src} --no-git --skip-po
-          '';
+          buildInputs =with nixpkgs; [
+            jdk
+            tesseract
+            gdal
+            gnupg
+          ];
+
+
+          nativeBuildInputs = [
+            makeWrapper
+          ];
+
+
+          installPhase = ''
+          echo "Installing.. "
+            mkdir -pv $out/share/java $out/bin
+            ls -l ${src}
+          cp ${src} $out/share/java/tika-server-1.27.jar
+          makeWrapper ${jre}/bin/java $out/bin/tika-server \
+            --add-flags "-jar $out/share/java/tika-server-1.27.jar" \
+            --set _JAVA_OPTIONS '-Dawt.useSystemAAFontSettings=on' \
+            --set _JAVA_AWT_WM_NONREPARENTING 1
+            '';
+
 
           meta = {
             homepage = "https://www.gnu.org/software/hello/";
@@ -53,68 +72,52 @@
       # Provide some binary packages for selected system types.
       packages = forAllSystems (system:
         {
-          inherit (nixpkgsFor.${system}) hello;
+          inherit (nixpkgsFor.${system}) tika-server;
         });
 
       # The default package for 'nix build'. This makes sense if the
       # flake provides only one package or there is a clear "main"
       # package.
-      defaultPackage = forAllSystems (system: self.packages.${system}.hello);
+      defaultPackage = forAllSystems (system: self.packages.${system}.tika-server);
 
       # A NixOS module, if applicable (e.g. if the package provides a system service).
-      nixosModules.hello =
-        { pkgs, ... }:
-        {
-          nixpkgs.overlays = [ self.overlay ];
+      nixosModules.tika-server={config, nixpkgs, lib,...}:with lib; {
 
-          environment.systemPackages = [ pkgs.hello ];
+                options = {
 
-          #systemd.services = { ... };
-        };
+                  services.tika-server = {
 
-      # Tests run by 'nix flake check' and by Hydra.
-      checks = forAllSystems (system: {
-        inherit (self.packages.${system}) hello;
+                    enable = mkOption {
+                      type = types.bool;
+                      default = false;
+                      description = ''
+                      tika server
+                      '';
+                    };
+                  };
 
-        # Additional tests, if applicable.
-        test =
-          with nixpkgsFor.${system};
-          stdenv.mkDerivation {
-            name = "hello-test-${version}";
+                };
 
-            buildInputs = [ hello ];
 
-            unpackPhase = "true";
+                ###### implementation
 
-            buildPhase = ''
-              echo 'running some integration tests'
-              [[ $(hello) = 'Hello, world!' ]]
-            '';
+                config = mkIf config.services.tika-server.enable {
 
-            installPhase = "mkdir -p $out";
-          };
+                  inherit system;
+                  systemd.services.tika-server = {
+                    description = "Tika Server";
+                    serviceConfig = {
+                      ExecStart =  "${self.packages.x86_64-linux.tika-server}/bin/tika-server";
+                      
+                    };
+                  };
+                };
 
-        # A VM test of the NixOS module.
-        vmTest =
-          with import (nixpkgs + "/nixos/lib/testing-python.nix") {
-            inherit system;
-          };
 
-          makeTest {
-            nodes = {
-              client = { ... }: {
-                imports = [ self.nixosModules.hello ];
-              };
-            };
 
-            testScript =
-              ''
-                start_all()
-                client.wait_for_unit("multi-user.target")
-                client.succeed("hello")
-              '';
-          };
-      });
+         
+         };
+
 
     };
 }
