@@ -86,7 +86,6 @@
                 options = {
 
                   services.tika-server = {
-
                     enable = mkOption {
                       type = types.bool;
                       default = false;
@@ -102,8 +101,6 @@
                 ###### implementation
 
                 config = mkIf config.services.tika-server.enable {
-
-                  inherit system;
                   systemd.services.tika-server = {
                     description = "Tika Server";
                     serviceConfig = {
